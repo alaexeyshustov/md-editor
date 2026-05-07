@@ -1,0 +1,26 @@
+{
+  "name": "md-editor",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest",
+    "test:run": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.33.0",
+  "devDependencies": {
+    "@nativescript/vite": "^2.0.3",
+    "@vitest/coverage-v8": "^4.1.5",
+    "@vue/eslint-config-typescript": "^14.7.0",
+    "eslint": "^10.3.0",
+    "eslint-plugin-vue": "^10.9.1",
+    "typescript-eslint": "^8.59.2",
+    "vitest": "^4.1.5"
+  }
+}
