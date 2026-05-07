@@ -8,7 +8,7 @@ export default [
   },
   {
     name: 'app/files-to-ignore',
-    ignores: ['**/dist/**', '**/node_modules/**'],
+    ignores: ['**/.ns-vite-build/**', '**/dist/**', '**/node_modules/**'],
   },
   ...pluginVue.configs['flat/recommended'],
   ...vueTsEslintConfig(),

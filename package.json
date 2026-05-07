@@ -1,26 +1,54 @@
 {
   "name": "md-editor",
   "version": "1.0.0",
-  "description": "",
+  "description": "Offline Markdown editor scaffold built with NativeScript-Vue 3.",
+  "private": true,
+  "main": "app/main.ts",
   "type": "module",
   "scripts": {
+    "build": "vite build -- --env.android",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "prepare:android": "ns prepare android",
     "test": "vitest",
-    "test:run": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit",
+    "test:run": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
-  "keywords": [],
+  "keywords": [
+    "nativescript",
+    "vue",
+    "markdown"
+  ],
   "author": "",
   "license": "ISC",
   "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22.12.0",
+    "pnpm": ">=10"
+  },
+  "dependencies": {
+    "@nativescript/core": "^9.0.18",
+    "@vue/devtools-api": "^6.6.4",
+    "@vue/reactivity": "^3.5.34",
+    "@vue/runtime-core": "^3.5.34",
+    "@vue/shared": "^3.5.34",
+    "nativescript-vue": "^3.0.2",
+    "pinia": "^3.0.3",
+    "source-map-js": "^1.2.1",
+    "vue": "^3.5.22"
+  },
   "devDependencies": {
     "@nativescript/vite": "^2.0.3",
+    "@types/node": "^24.9.1",
     "@vitest/coverage-v8": "^4.1.5",
     "@vue/eslint-config-typescript": "^14.7.0",
     "eslint": "^10.3.0",
     "eslint-plugin-vue": "^10.9.1",
+    "nativescript": "^9.0.6",
+    "typescript": "^5.9.3",
     "typescript-eslint": "^8.59.2",
+    "vite": "^7.3.3",
     "vitest": "^4.1.5"
   }
 }

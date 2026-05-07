@@ -26,6 +26,8 @@ jobs:
 
       - run: pnpm lint
 
+      - run: pnpm typecheck
+
   audit:
     name: Audit
     runs-on: ubuntu-latest
@@ -46,7 +48,7 @@ jobs:
       - run: pnpm audit --audit-level=high
 
   test:
-    name: Test
+    name: Test and Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -63,3 +65,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm test:run
+
+      - run: pnpm build
+
