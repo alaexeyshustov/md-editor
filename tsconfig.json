@@ -10,7 +10,7 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": ["node", "@nativescript/types-android"]
   },
   "include": ["app/**/*.ts", "app/**/*.d.ts", "app/**/*.vue", "*.ts"],
   "exclude": ["dist", "node_modules"]

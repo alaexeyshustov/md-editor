@@ -1,19 +1,23 @@
 <template>
-  <Page>
-    <ActionBar :title="appInfo.name" />
-
-    <ScrollView>
-      <StackLayout class="p-6">
-        <Label
-          :text="appInfo.tagline"
-          text-wrap="true"
-        />
-      </StackLayout>
-    </ScrollView>
-  </Page>
+  <Frame>
+    <component :is="rootPage" />
+  </Frame>
 </template>
 
 <script setup lang="ts">
-import { appInfo } from './app'
-</script>
+import { computed, onMounted } from 'vue'
 
+import { useVaultStore } from './stores/vault'
+import GridView from './pages/Grid/GridView.vue'
+import VaultSetupView from './pages/VaultSetup/VaultSetupView.vue'
+
+const vaultStore = useVaultStore()
+
+onMounted(() => {
+  vaultStore.init()
+})
+
+const rootPage = computed(() =>
+  vaultStore.vaultUri ? GridView : VaultSetupView,
+)
+</script>
