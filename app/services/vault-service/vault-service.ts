@@ -11,6 +11,7 @@ export interface PermissionAdapter {
 
 export interface FileEntry {
   name: string
+  uri: string
   lastModified: number
   readText(): string
 }
@@ -21,6 +22,7 @@ export interface FileSystemAdapter {
 
 export interface NoteMetadata {
   id: string
+  uri: string
   title: string
   preview: string
   lastModified: number
@@ -55,9 +57,10 @@ export function createVaultService(deps: {
       return deps.fileSystem.listFiles(vaultUri)
         .filter(f => f.name.endsWith('.md'))
         .map(f => ({
-          id: f.name,
+          id: f.uri,
+          uri: f.uri,
           title: f.name.replace(/\.md$/, ''),
-          preview: f.readText().split('\n').slice(0, 4).join('\n'),
+          preview: f.readText().split(/\r?\n/).slice(0, 4).join('\n'),
           lastModified: f.lastModified,
         }))
     },

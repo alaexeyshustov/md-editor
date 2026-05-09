@@ -132,15 +132,18 @@ export const androidFileSystem: FileSystemAdapter = {
 
         if (mimeType === 'vnd.android.document/directory') continue
 
+        const docUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
         entries.push({
           name,
+          uri: docUri.toString(),
           lastModified,
           readText() {
-            const docUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
             const stream = contentResolver.openInputStream(docUri)
             if (!stream) return ''
             try {
-              const reader = new java.io.BufferedReader(new java.io.InputStreamReader(stream))
+              const reader = new java.io.BufferedReader(
+                new java.io.InputStreamReader(stream, java.nio.charset.StandardCharsets.UTF_8),
+              )
               const sb = new java.lang.StringBuilder()
               let line: string | null = reader.readLine()
               while (line !== null) {

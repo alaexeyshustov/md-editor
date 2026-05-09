@@ -5,7 +5,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import { Application } from '@nativescript/core'
 
 import { useVaultStore } from './stores/vault'
@@ -21,11 +21,19 @@ catch {
   // If SharedPreferences is corrupt, stay on VaultSetupView (vaultUri remains null)
 }
 
-Application.on('resume', () => {
-  vaultStore.loadNotes()
-})
-
 const rootPage = computed(() =>
   vaultStore.vaultUri ? GridView : VaultSetupView,
 )
+
+function handleResume() {
+  void vaultStore.loadNotes()
+}
+
+onMounted(() => {
+  Application.on('resume', handleResume)
+})
+
+onUnmounted(() => {
+  Application.off('resume', handleResume)
+})
 </script>

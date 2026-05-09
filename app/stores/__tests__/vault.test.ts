@@ -17,7 +17,7 @@ const mockService: VaultService = {
 }
 
 function makeNote(id: string, lastModified: number): NoteMetadata {
-  return { id, title: id, preview: '', lastModified }
+  return { id, uri: id, title: id, preview: '', lastModified }
 }
 
 describe('useVaultStore', () => {
@@ -113,6 +113,49 @@ describe('useVaultStore', () => {
     it('sets isLoading to false after completion', async () => {
       mockGetStoredVaultUri.mockReturnValue('content://vault')
       mockListNotes.mockReturnValue([])
+      const store = useVaultStore()
+      store.init()
+      await store.loadNotes()
+      expect(store.isLoading).toBe(false)
+    })
+  })
+
+  describe('loadNotes() error handling', () => {
+    it('sets error when listNotes throws', async () => {
+      mockGetStoredVaultUri.mockReturnValue('content://vault')
+      mockListNotes.mockImplementation(() => { throw new Error('Permission denied') })
+      const store = useVaultStore()
+      store.init()
+      await store.loadNotes()
+      expect(store.error).toBeInstanceOf(Error)
+      expect((store.error as Error).message).toBe('Permission denied')
+    })
+
+    it('clears notes when listNotes throws', async () => {
+      mockGetStoredVaultUri.mockReturnValue('content://vault')
+      mockListNotes.mockReturnValue([makeNote('old.md', 1000)])
+      const store = useVaultStore()
+      store.init()
+      await store.loadNotes()
+      mockListNotes.mockImplementation(() => { throw new Error('Permission denied') })
+      await store.loadNotes()
+      expect(store.notes).toEqual([])
+    })
+
+    it('clears error on successful load', async () => {
+      mockGetStoredVaultUri.mockReturnValue('content://vault')
+      mockListNotes.mockImplementation(() => { throw new Error('Permission denied') })
+      const store = useVaultStore()
+      store.init()
+      await store.loadNotes()
+      mockListNotes.mockReturnValue([])
+      await store.loadNotes()
+      expect(store.error).toBeNull()
+    })
+
+    it('sets isLoading to false even when listNotes throws', async () => {
+      mockGetStoredVaultUri.mockReturnValue('content://vault')
+      mockListNotes.mockImplementation(() => { throw new Error('fail') })
       const store = useVaultStore()
       store.init()
       await store.loadNotes()
