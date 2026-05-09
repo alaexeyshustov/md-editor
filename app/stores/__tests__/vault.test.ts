@@ -1,17 +1,23 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { VaultService } from '../../services/vault-service/vault-service'
+import type { NoteMetadata, VaultService } from '../../services/vault-service/vault-service'
 import { configureVaultService, useVaultStore } from '../vault'
 
 const mockGetStoredVaultUri = vi.fn<() => string | null>()
 const mockSaveVaultUri = vi.fn<(uri: string) => void>()
 const mockRequestVaultPermission = vi.fn<() => Promise<string | null>>()
+const mockListNotes = vi.fn<(vaultUri: string) => NoteMetadata[]>()
 
 const mockService: VaultService = {
   getStoredVaultUri: mockGetStoredVaultUri,
   saveVaultUri: mockSaveVaultUri,
   requestVaultPermission: mockRequestVaultPermission,
+  listNotes: mockListNotes,
+}
+
+function makeNote(id: string, lastModified: number): NoteMetadata {
+  return { id, title: id, preview: '', lastModified }
 }
 
 describe('useVaultStore', () => {
@@ -68,6 +74,49 @@ describe('useVaultStore', () => {
       expect(result).toBeNull()
       expect(store.vaultUri).toBeNull()
       expect(mockSaveVaultUri).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('sortedNotes', () => {
+    it('returns notes sorted by lastModified descending', async () => {
+      mockGetStoredVaultUri.mockReturnValue('content://vault')
+      mockListNotes.mockReturnValue([
+        makeNote('old.md', 1000),
+        makeNote('new.md', 3000),
+        makeNote('mid.md', 2000),
+      ])
+      const store = useVaultStore()
+      store.init()
+      await store.loadNotes()
+      expect(store.sortedNotes.map(n => n.id)).toEqual(['new.md', 'mid.md', 'old.md'])
+    })
+  })
+
+  describe('loadNotes()', () => {
+    it('calls listNotes with the current vaultUri', async () => {
+      mockGetStoredVaultUri.mockReturnValue('content://my-vault')
+      mockListNotes.mockReturnValue([])
+      const store = useVaultStore()
+      store.init()
+      await store.loadNotes()
+      expect(mockListNotes).toHaveBeenCalledWith('content://my-vault')
+    })
+
+    it('does nothing when vaultUri is null', async () => {
+      mockGetStoredVaultUri.mockReturnValue(null)
+      const store = useVaultStore()
+      store.init()
+      await store.loadNotes()
+      expect(mockListNotes).not.toHaveBeenCalled()
+    })
+
+    it('sets isLoading to false after completion', async () => {
+      mockGetStoredVaultUri.mockReturnValue('content://vault')
+      mockListNotes.mockReturnValue([])
+      const store = useVaultStore()
+      store.init()
+      await store.loadNotes()
+      expect(store.isLoading).toBe(false)
     })
   })
 })
