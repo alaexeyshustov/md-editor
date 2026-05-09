@@ -28,12 +28,14 @@
     "pnpm": ">=10"
   },
   "dependencies": {
+    "@nativescript/core": "^9.0.18",
     "nativescript": "^9.0.6",
     "nativescript-vue": "^3.0.2",
     "pinia": "^3.0.4",
     "vue": "^3.5.34"
   },
   "devDependencies": {
+    "@nativescript/types-android": "^9.0.0",
     "@nativescript/vite": "^2.0.3",
     "@types/node": "^25.6.2",
     "@vitest/coverage-v8": "^4.1.5",
