@@ -16,19 +16,11 @@
 </template>
 
 <script setup lang="ts">
-import { Frame } from '@nativescript/core'
-
-import { vaultService } from '../../services/vault-service/android-adapters'
 import { useVaultStore } from '../../stores/vault'
-import GridView from '../Grid/GridView.vue'
 
 const vaultStore = useVaultStore()
 
 async function onChooseVault() {
-  const uri = await vaultService.requestVaultPermission()
-  if (uri) {
-    vaultStore.setVaultUri(uri)
-    Frame.topmost().navigate({ create: () => new (GridView as never)() })
-  }
+  await vaultStore.pickAndSetVault()
 }
 </script>

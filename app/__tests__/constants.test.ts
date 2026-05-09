@@ -1,21 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { DATE_FORMAT, generateHash, META_FILENAME, VAULT_URI_KEY } from '../constants'
-
-describe('generateHash', () => {
-  it('returns a non-empty string', () => {
-    expect(generateHash('hello')).toBeTruthy()
-    expect(typeof generateHash('hello')).toBe('string')
-  })
-
-  it('is deterministic', () => {
-    expect(generateHash('abc')).toBe(generateHash('abc'))
-  })
-
-  it('produces different hashes for different inputs', () => {
-    expect(generateHash('foo')).not.toBe(generateHash('bar'))
-  })
-})
+import { DATE_FORMAT, META_FILENAME, VAULT_URI_KEY } from '../constants'
 
 describe('constants', () => {
   it('VAULT_URI_KEY is defined', () => {

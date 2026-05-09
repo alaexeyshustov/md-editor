@@ -3,7 +3,7 @@ import { Application } from '@nativescript/core'
 import { createVaultService, type PermissionAdapter, type StorageAdapter } from './vault-service'
 
 const PREFS_NAME = 'md_editor_prefs'
-const SAF_REQUEST_CODE = 42
+const FOLDER_PICKER_REQUEST_CODE = 0xABCD
 
 export const androidStorage: StorageAdapter = {
   get(key) {
@@ -21,14 +21,27 @@ export const androidStorage: StorageAdapter = {
 
 export const androidPermission: PermissionAdapter = {
   requestFolderPicker() {
+    let pending = false
+
     return new Promise<string | null>((resolve) => {
+      if (pending) {
+        resolve(null)
+        return
+      }
+      pending = true
+
       const intent = new android.content.Intent(
         android.content.Intent.ACTION_OPEN_DOCUMENT_TREE,
       )
+      intent.addFlags(
+        android.content.Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+        | android.content.Intent.FLAG_GRANT_PREFIX_URI_PERMISSION,
+      )
 
       function onResult(args: { requestCode: number; resultCode: number; intent: android.content.Intent }) {
-        if (args.requestCode !== SAF_REQUEST_CODE) return
+        if (args.requestCode !== FOLDER_PICKER_REQUEST_CODE) return
         Application.android.off('activityResult', onResult)
+        pending = false
 
         if (args.resultCode !== android.app.Activity.RESULT_OK || !args.intent) {
           resolve(null)
@@ -36,18 +49,48 @@ export const androidPermission: PermissionAdapter = {
         }
 
         const uri = args.intent.getData()
+        if (!uri) {
+          resolve(null)
+          return
+        }
+
+        const grantedFlags = args.intent.getFlags()
         const flags
-          = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-          | android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-        Application.android.context
-          .getContentResolver()
-          .takePersistableUriPermission(uri, flags)
+          = grantedFlags
+          & (android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+          | android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+
+        try {
+          Application.android.context
+            .getContentResolver()
+            .takePersistableUriPermission(uri, flags)
+        }
+        catch {
+          resolve(null)
+          return
+        }
 
         resolve(uri.toString())
       }
 
       Application.android.on('activityResult', onResult)
-      Application.android.foregroundActivity.startActivityForResult(intent, SAF_REQUEST_CODE)
+
+      const activity = Application.android.foregroundActivity
+      if (!activity) {
+        Application.android.off('activityResult', onResult)
+        pending = false
+        resolve(null)
+        return
+      }
+
+      try {
+        activity.startActivityForResult(intent, FOLDER_PICKER_REQUEST_CODE)
+      }
+      catch {
+        Application.android.off('activityResult', onResult)
+        pending = false
+        resolve(null)
+      }
     })
   },
 }
