@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
-import type { VaultService } from '../services/vault-service/vault-service'
+import type { NoteMetadata, VaultService } from '../services/vault-service/vault-service'
 
 let _service: VaultService | null = null
 
@@ -16,6 +16,13 @@ function getService(): VaultService {
 
 export const useVaultStore = defineStore('vault', () => {
   const vaultUri = ref<string | null>(null)
+  const notes = ref<NoteMetadata[]>([])
+  const isLoading = ref(false)
+  const error = ref<Error | null>(null)
+
+  const sortedNotes = computed(() =>
+    [...notes.value].sort((a, b) => b.lastModified - a.lastModified),
+  )
 
   function init() {
     vaultUri.value = getService().getStoredVaultUri()
@@ -32,5 +39,21 @@ export const useVaultStore = defineStore('vault', () => {
     return uri
   }
 
-  return { vaultUri, init, setVaultUri, pickAndSetVault }
+  async function loadNotes(): Promise<void> {
+    if (!vaultUri.value) return
+    isLoading.value = true
+    error.value = null
+    try {
+      notes.value = getService().listNotes(vaultUri.value)
+    }
+    catch (e) {
+      notes.value = []
+      error.value = e instanceof Error ? e : new Error(String(e))
+    }
+    finally {
+      isLoading.value = false
+    }
+  }
+
+  return { vaultUri, notes, error, isLoading, sortedNotes, init, setVaultUri, pickAndSetVault, loadNotes }
 })
