@@ -1,4 +1,3 @@
-import { generateHash } from '../../helpers/hash/hash'
 import { slugify } from '../../helpers/slug/slug'
 import { VAULT_URI_KEY } from '../../constants'
 
@@ -57,7 +56,7 @@ export function createVaultService(deps: {
   writer?: WriterAdapter
   reader?: ReaderAdapter
 }): VaultService {
-  const newNoteUris = new Set<string>()
+  const newNoteUris = new Map<string, string>() // documentUri → vaultUri
 
   return {
     getStoredVaultUri() {
@@ -86,10 +85,12 @@ export function createVaultService(deps: {
 
     createNote(vaultUri: string): string {
       if (!deps.writer) throw new Error('WriterAdapter not configured')
-      const name = `${generateHash(Date.now().toString())}.md`
+      const bytes = crypto.getRandomValues(new Uint8Array(8))
+      const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
+      const name = `${hex}.md`
       const uri = deps.writer.createDocument(vaultUri, name)
       deps.writer.writeDocument(uri, '')
-      newNoteUris.add(uri)
+      newNoteUris.set(uri, vaultUri)
       return uri
     },
 
@@ -99,14 +100,32 @@ export function createVaultService(deps: {
 
       if (!newNoteUris.has(uri)) return uri
 
+      const vaultUri = newNoteUris.get(uri)!
       newNoteUris.delete(uri)
 
-      const firstLine = content.split(/\r?\n/)[0] ?? ''
+      const firstLine = (content.split(/\r?\n/)[0] ?? '').trim()
       const slug = slugify(firstLine)
       if (!slug) return uri
 
-      const newUri = deps.writer.renameDocument(uri, `${slug}.md`)
-      return newUri
+      const existing = new Set(
+        deps.fileSystem.listFiles(vaultUri)
+          .filter(f => f.name.endsWith('.md'))
+          .map(f => f.name),
+      )
+      let targetName = `${slug}.md`
+      let counter = 2
+      while (existing.has(targetName)) {
+        targetName = `${slug}-${counter}.md`
+        counter++
+      }
+
+      try {
+        return deps.writer.renameDocument(uri, targetName)
+      }
+      catch (err) {
+        newNoteUris.set(uri, vaultUri)
+        throw err
+      }
     },
 
     readNote(uri: string): string {

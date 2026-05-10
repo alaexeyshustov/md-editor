@@ -151,11 +151,11 @@ describe('VaultService.listNotes', () => {
 })
 
 describe('VaultService.createNote', () => {
-  it('calls createDocument with vaultUri and a hash-named .md filename', () => {
+  it('calls createDocument with vaultUri and a 16-char hex .md filename', () => {
     const writer = makeWriter()
     const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: makeFS([]), writer })
     service.createNote('content://vault')
-    expect(writer.createDocument).toHaveBeenCalledWith('content://vault', expect.stringMatching(/^[0-9a-z]+\.md$/))
+    expect(writer.createDocument).toHaveBeenCalledWith('content://vault', expect.stringMatching(/^[0-9a-f]{16}\.md$/))
   })
 
   it('writes empty content to the new file', () => {
@@ -206,6 +206,15 @@ describe('VaultService.saveNote', () => {
     expect(newUri).toBe('content://doc/hash123')
   })
 
+  it('keeps hash name on first save when first line is whitespace-only', () => {
+    const writer = makeWriter({ createDocument: vi.fn(() => 'content://doc/hash123') })
+    const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: makeFS([]), writer })
+    const uri = service.createNote('content://vault')
+    const newUri = service.saveNote(uri, '   \nsome content')
+    expect(writer.renameDocument).not.toHaveBeenCalled()
+    expect(newUri).toBe('content://doc/hash123')
+  })
+
   it('does not rename on second save even when first line is non-empty', () => {
     const writer = makeWriter({ createDocument: vi.fn(() => 'content://doc/hash123'), renameDocument: vi.fn(() => 'content://doc/renamed') })
     const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: makeFS([]), writer })
@@ -214,6 +223,55 @@ describe('VaultService.saveNote', () => {
     const afterSecond = service.saveNote(afterFirst, 'My Note updated')
     expect(writer.renameDocument).toHaveBeenCalledTimes(1)
     expect(afterSecond).toBe('content://doc/renamed')
+  })
+})
+
+describe('VaultService.saveNote - slug collision', () => {
+  it('appends -2 when slug name already exists in the vault', () => {
+    const writer = makeWriter({
+      createDocument: vi.fn(() => 'content://doc/hash123'),
+      renameDocument: vi.fn((_uri: string, name: string) => `content://doc/${name}`),
+    })
+    const fs = makeFS([{ name: 'my-note.md', lastModified: 1000, content: '', uri: 'content://doc/my-note.md' }])
+    const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: fs, writer })
+    const uri = service.createNote('content://vault')
+    service.saveNote(uri, 'My Note')
+    expect(writer.renameDocument).toHaveBeenCalledWith('content://doc/hash123', 'my-note-2.md')
+  })
+
+  it('increments counter until finding a unique name', () => {
+    const writer = makeWriter({
+      createDocument: vi.fn(() => 'content://doc/hash123'),
+      renameDocument: vi.fn((_uri: string, name: string) => `content://doc/${name}`),
+    })
+    const fs = makeFS([
+      { name: 'my-note.md', lastModified: 1000, content: '', uri: 'content://doc/my-note.md' },
+      { name: 'my-note-2.md', lastModified: 1001, content: '', uri: 'content://doc/my-note-2.md' },
+    ])
+    const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: fs, writer })
+    const uri = service.createNote('content://vault')
+    service.saveNote(uri, 'My Note')
+    expect(writer.renameDocument).toHaveBeenCalledWith('content://doc/hash123', 'my-note-3.md')
+  })
+})
+
+describe('VaultService.saveNote - rename failure recovery', () => {
+  it('re-tracks URI as new when rename fails so a subsequent save retries the rename', () => {
+    let shouldFail = true
+    const renameDocument = vi.fn((_uri: string, name: string) => {
+      if (shouldFail) throw new Error('Transient error')
+      return `content://doc/${name}`
+    })
+    const writer = makeWriter({ createDocument: vi.fn(() => 'content://doc/hash123'), renameDocument })
+    const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: makeFS([]), writer })
+    const uri = service.createNote('content://vault')
+
+    expect(() => service.saveNote(uri, 'My Note')).toThrow('Transient error')
+
+    shouldFail = false
+    const newUri = service.saveNote(uri, 'My Note')
+    expect(writer.renameDocument).toHaveBeenCalledTimes(2)
+    expect(newUri).toBe('content://doc/my-note.md')
   })
 })
 

@@ -147,8 +147,10 @@ export const androidFileSystem: FileSystemAdapter = {
               const sb = new java.lang.StringBuilder()
               let line: string | null = reader.readLine()
               while (line !== null) {
-                sb.append(line).append('\n')
-                line = reader.readLine()
+                const next = reader.readLine()
+                sb.append(line)
+                if (next !== null) sb.append('\n')
+                line = next
               }
               return sb.toString()
             }
@@ -181,8 +183,10 @@ export const androidReader: ReaderAdapter = {
       const sb = new java.lang.StringBuilder()
       let line: string | null = reader.readLine()
       while (line !== null) {
-        sb.append(line).append('\n')
-        line = reader.readLine()
+        const next = reader.readLine()
+        sb.append(line)
+        if (next !== null) sb.append('\n')
+        line = next
       }
       return sb.toString()
     }

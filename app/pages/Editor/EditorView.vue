@@ -4,7 +4,7 @@
       <NavigationButton text="Back" />
     </ActionBar>
     <TextView
-      :text="editor.content.value"
+      :text="content"
       hint="Start writing..."
       editable="true"
       class="editor-text"
@@ -14,23 +14,25 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import type { NavigatedData, PropertyChangeData } from '@nativescript/core'
 
 import { useEditor } from '../../hooks/use-editor/use-editor'
 
 const props = defineProps<{ uri: string }>()
-const editor = useEditor()
+const { content, load, save } = useEditor()
+let saving = false
 
-editor.load(props.uri)
+onMounted(() => load(props.uri))
 
 function onTextChange(args: PropertyChangeData) {
-  editor.content.value = String(args.value)
+  content.value = String(args.value)
 }
 
 function onNavigatingFrom(args: NavigatedData) {
-  if (args.isBackNavigation) {
-    void editor.save()
-  }
+  if (!args.isBackNavigation || saving) return
+  saving = true
+  save().catch(() => {}).finally(() => { saving = false })
 }
 </script>
 
