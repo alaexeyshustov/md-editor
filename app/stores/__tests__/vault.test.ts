@@ -8,12 +8,18 @@ const mockGetStoredVaultUri = vi.fn<() => string | null>()
 const mockSaveVaultUri = vi.fn<(uri: string) => void>()
 const mockRequestVaultPermission = vi.fn<() => Promise<string | null>>()
 const mockListNotes = vi.fn<(vaultUri: string) => NoteMetadata[]>()
+const mockCreateNote = vi.fn<(vaultUri: string) => string>()
+const mockSaveNote = vi.fn<(uri: string, content: string) => string>()
+const mockReadNote = vi.fn<(uri: string) => string>()
 
 const mockService: VaultService = {
   getStoredVaultUri: mockGetStoredVaultUri,
   saveVaultUri: mockSaveVaultUri,
   requestVaultPermission: mockRequestVaultPermission,
   listNotes: mockListNotes,
+  createNote: mockCreateNote,
+  saveNote: mockSaveNote,
+  readNote: mockReadNote,
 }
 
 function makeNote(id: string, lastModified: number): NoteMetadata {
@@ -160,6 +166,63 @@ describe('useVaultStore', () => {
       store.init()
       await store.loadNotes()
       expect(store.isLoading).toBe(false)
+    })
+  })
+
+  describe('createNote()', () => {
+    it('calls service.createNote with the current vaultUri', () => {
+      mockGetStoredVaultUri.mockReturnValue('content://vault')
+      mockCreateNote.mockReturnValue('content://doc/new')
+      const store = useVaultStore()
+      store.init()
+      store.createNote()
+      expect(mockCreateNote).toHaveBeenCalledWith('content://vault')
+    })
+
+    it('returns the URI from the service', () => {
+      mockGetStoredVaultUri.mockReturnValue('content://vault')
+      mockCreateNote.mockReturnValue('content://doc/abc')
+      const store = useVaultStore()
+      store.init()
+      expect(store.createNote()).toBe('content://doc/abc')
+    })
+
+    it('throws when vaultUri is null', () => {
+      const store = useVaultStore()
+      expect(() => store.createNote()).toThrow()
+    })
+  })
+
+  describe('saveNote()', () => {
+    it('calls service.saveNote and returns the (possibly new) URI', async () => {
+      mockGetStoredVaultUri.mockReturnValue('content://vault')
+      mockListNotes.mockReturnValue([])
+      mockSaveNote.mockReturnValue('content://doc/renamed')
+      const store = useVaultStore()
+      store.init()
+      const result = await store.saveNote('content://doc/old', 'my content')
+      expect(mockSaveNote).toHaveBeenCalledWith('content://doc/old', 'my content')
+      expect(result).toBe('content://doc/renamed')
+    })
+
+    it('refreshes the notes list after saving', async () => {
+      mockGetStoredVaultUri.mockReturnValue('content://vault')
+      mockSaveNote.mockReturnValue('content://doc/same')
+      mockListNotes.mockReturnValue([makeNote('content://doc/same', 2000)])
+      const store = useVaultStore()
+      store.init()
+      await store.saveNote('content://doc/same', 'updated')
+      expect(mockListNotes).toHaveBeenCalled()
+      expect(store.notes).toHaveLength(1)
+    })
+  })
+
+  describe('readNote()', () => {
+    it('delegates to service.readNote and returns content', () => {
+      mockReadNote.mockReturnValue('note content here')
+      const store = useVaultStore()
+      expect(store.readNote('content://doc/note')).toBe('note content here')
+      expect(mockReadNote).toHaveBeenCalledWith('content://doc/note')
     })
   })
 })

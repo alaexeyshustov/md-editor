@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-import type { FileSystemAdapter } from '../vault-service'
+import type { FileSystemAdapter, ReaderAdapter, WriterAdapter } from '../vault-service'
 import { createVaultService } from '../vault-service'
 
 function makeStorage(initial: Record<string, string> = {}) {
@@ -21,6 +21,22 @@ function makeFS(files: Array<{ name: string; lastModified: number; content: stri
       lastModified: f.lastModified,
       readText: () => f.content,
     })),
+  }
+}
+
+function makeWriter(overrides: Partial<WriterAdapter> = {}): WriterAdapter {
+  return {
+    createDocument: vi.fn(() => 'content://doc/new'),
+    writeDocument: vi.fn(),
+    renameDocument: vi.fn((uri: string) => `${uri}-renamed`),
+    ...overrides,
+  }
+}
+
+function makeReader(overrides: Partial<ReaderAdapter> = {}): ReaderAdapter {
+  return {
+    readFile: vi.fn(() => ''),
+    ...overrides,
   }
 }
 
@@ -128,8 +144,91 @@ describe('VaultService.listNotes', () => {
         return []
       },
     }
-    const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: fs })
+    const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: fs, writer: makeWriter() })
     service.listNotes('content://my-vault')
     expect(capturedUri).toBe('content://my-vault')
+  })
+})
+
+describe('VaultService.createNote', () => {
+  it('calls createDocument with vaultUri and a hash-named .md filename', () => {
+    const writer = makeWriter()
+    const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: makeFS([]), writer })
+    service.createNote('content://vault')
+    expect(writer.createDocument).toHaveBeenCalledWith('content://vault', expect.stringMatching(/^[0-9a-z]+\.md$/))
+  })
+
+  it('writes empty content to the new file', () => {
+    const writer = makeWriter({ createDocument: vi.fn(() => 'content://doc/abc') })
+    const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: makeFS([]), writer })
+    service.createNote('content://vault')
+    expect(writer.writeDocument).toHaveBeenCalledWith('content://doc/abc', '')
+  })
+
+  it('returns the URI of the newly created document', () => {
+    const writer = makeWriter({ createDocument: vi.fn(() => 'content://doc/new-note') })
+    const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: makeFS([]), writer })
+    expect(service.createNote('content://vault')).toBe('content://doc/new-note')
+  })
+})
+
+describe('VaultService.saveNote', () => {
+  it('writes content to the file', () => {
+    const writer = makeWriter()
+    const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: makeFS([]), writer })
+    service.saveNote('content://doc/xyz', 'hello world')
+    expect(writer.writeDocument).toHaveBeenCalledWith('content://doc/xyz', 'hello world')
+  })
+
+  it('returns same URI when called on a note not created in this session', () => {
+    const writer = makeWriter()
+    const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: makeFS([]), writer })
+    const result = service.saveNote('content://doc/xyz', 'hello')
+    expect(result).toBe('content://doc/xyz')
+    expect(writer.renameDocument).not.toHaveBeenCalled()
+  })
+
+  it('renames on first save when first line is non-empty', () => {
+    const writer = makeWriter({ createDocument: vi.fn(() => 'content://doc/hash123') })
+    const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: makeFS([]), writer })
+    const uri = service.createNote('content://vault')
+    const newUri = service.saveNote(uri, 'My Great Note\nrest of content')
+    expect(writer.renameDocument).toHaveBeenCalledWith('content://doc/hash123', 'my-great-note.md')
+    expect(newUri).toBe('content://doc/hash123-renamed')
+  })
+
+  it('keeps hash name on first save when first line is blank', () => {
+    const writer = makeWriter({ createDocument: vi.fn(() => 'content://doc/hash123') })
+    const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: makeFS([]), writer })
+    const uri = service.createNote('content://vault')
+    const newUri = service.saveNote(uri, '')
+    expect(writer.renameDocument).not.toHaveBeenCalled()
+    expect(newUri).toBe('content://doc/hash123')
+  })
+
+  it('does not rename on second save even when first line is non-empty', () => {
+    const writer = makeWriter({ createDocument: vi.fn(() => 'content://doc/hash123'), renameDocument: vi.fn(() => 'content://doc/renamed') })
+    const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: makeFS([]), writer })
+    const uri = service.createNote('content://vault')
+    const afterFirst = service.saveNote(uri, 'My Note')
+    const afterSecond = service.saveNote(afterFirst, 'My Note updated')
+    expect(writer.renameDocument).toHaveBeenCalledTimes(1)
+    expect(afterSecond).toBe('content://doc/renamed')
+  })
+})
+
+describe('VaultService.readNote', () => {
+  it('returns file content from the reader adapter', () => {
+    const reader = makeReader({ readFile: vi.fn(() => 'hello world') })
+    const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: makeFS([]), reader })
+    expect(service.readNote('content://doc/note')).toBe('hello world')
+  })
+
+  it('passes the URI to the reader adapter', () => {
+    const readFile = vi.fn(() => '')
+    const reader = makeReader({ readFile })
+    const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: makeFS([]), reader })
+    service.readNote('content://doc/abc')
+    expect(readFile).toHaveBeenCalledWith('content://doc/abc')
   })
 })

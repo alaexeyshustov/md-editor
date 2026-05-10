@@ -12,11 +12,15 @@ vi.mock('vue', async (importOriginal) => {
 })
 
 const mockListNotes = vi.fn<(uri: string) => NoteMetadata[]>()
+const mockCreateNote = vi.fn<(vaultUri: string) => string>(() => 'content://doc/new')
 const mockService: VaultService = {
   getStoredVaultUri: vi.fn(() => null),
   saveVaultUri: vi.fn(),
   requestVaultPermission: vi.fn(async () => null),
   listNotes: mockListNotes,
+  createNote: mockCreateNote,
+  saveNote: vi.fn((uri) => uri),
+  readNote: vi.fn(() => ''),
 }
 
 function makeNote(id: string, lastModified: number): NoteMetadata {
@@ -67,5 +71,18 @@ describe('useGrid', () => {
 
     await store.loadNotes()
     expect(isLoading.value).toBe(false)
+  })
+
+  describe('newNote()', () => {
+    it('calls store.createNote and returns the new URI', () => {
+      mockCreateNote.mockReturnValue('content://doc/abc')
+      const store = useVaultStore()
+      store.vaultUri = 'content://vault'
+      mockListNotes.mockReturnValue([])
+
+      const grid = useGrid()
+      const uri = grid.newNote()
+      expect(uri).toBe('content://doc/abc')
+    })
   })
 })
