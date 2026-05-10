@@ -1,56 +1,70 @@
 <template>
   <Page>
     <ActionBar title="Notes" />
-    <ScrollView>
-      <StackLayout>
-        <ActivityIndicator
-          v-if="grid.isLoading"
-          :busy="true"
-          class="loader"
-        />
+    <GridLayout>
+      <ScrollView>
+        <StackLayout>
+          <ActivityIndicator
+            v-if="grid.isLoading"
+            :busy="true"
+            class="loader"
+          />
 
-        <Label
-          v-else-if="grid.sortedNotes.length === 0"
-          text="No notes yet. Open Obsidian to create your first note."
-          class="empty-state"
-          text-wrap="true"
-        />
+          <Label
+            v-else-if="grid.sortedNotes.length === 0"
+            text="No notes yet. Tap + to create your first note."
+            class="empty-state"
+            text-wrap="true"
+          />
 
-        <GridLayout
-          v-else
-          columns="*, *"
-          class="grid-container"
-        >
-          <StackLayout
-            col="0"
-            class="grid-column"
+          <GridLayout
+            v-else
+            columns="*, *"
+            class="grid-container"
           >
-            <NoteCard
-              v-for="note in leftColumnNotes"
-              :key="note.id"
-              :note="note"
-            />
-          </StackLayout>
-          <StackLayout
-            col="1"
-            class="grid-column"
-          >
-            <NoteCard
-              v-for="note in rightColumnNotes"
-              :key="note.id"
-              :note="note"
-            />
-          </StackLayout>
-        </GridLayout>
-      </StackLayout>
-    </ScrollView>
+            <StackLayout
+              col="0"
+              class="grid-column"
+            >
+              <NoteCard
+                v-for="note in leftColumnNotes"
+                :key="note.id"
+                :note="note"
+                @open="openNote"
+              />
+            </StackLayout>
+            <StackLayout
+              col="1"
+              class="grid-column"
+            >
+              <NoteCard
+                v-for="note in rightColumnNotes"
+                :key="note.id"
+                :note="note"
+                @open="openNote"
+              />
+            </StackLayout>
+          </GridLayout>
+        </StackLayout>
+      </ScrollView>
+
+      <Button
+        text="+"
+        class="fab"
+        horizontal-alignment="right"
+        vertical-alignment="bottom"
+        @tap="onNewNote"
+      />
+    </GridLayout>
   </Page>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { $navigateTo } from 'nativescript-vue'
 
 import { useGrid } from '../../hooks/use-grid/use-grid'
+import EditorView from '../Editor/EditorView.vue'
 import NoteCard from './components/NoteCard/NoteCard.vue'
 
 const grid = useGrid()
@@ -62,6 +76,15 @@ const leftColumnNotes = computed(() =>
 const rightColumnNotes = computed(() =>
   grid.sortedNotes.filter((_, i) => i % 2 !== 0),
 )
+
+async function openNote(uri: string) {
+  await $navigateTo(EditorView, { props: { uri } })
+}
+
+async function onNewNote() {
+  const uri = grid.newNote()
+  await $navigateTo(EditorView, { props: { uri } })
+}
 </script>
 
 <style scoped>
@@ -82,5 +105,16 @@ const rightColumnNotes = computed(() =>
 
 .grid-column {
   padding: 0;
+}
+
+.fab {
+  width: 56;
+  height: 56;
+  border-radius: 28;
+  font-size: 24;
+  background-color: #007AFF;
+  color: #ffffff;
+  margin: 16;
+  elevation: 6;
 }
 </style>

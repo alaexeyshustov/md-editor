@@ -1,6 +1,6 @@
 import { Application } from '@nativescript/core'
 
-import { createVaultService, type FileEntry, type FileSystemAdapter, type PermissionAdapter, type StorageAdapter } from './vault-service'
+import { createVaultService, type FileEntry, type FileSystemAdapter, type PermissionAdapter, type ReaderAdapter, type StorageAdapter, type WriterAdapter } from './vault-service'
 
 const PREFS_NAME = 'md_editor_prefs'
 const FOLDER_PICKER_REQUEST_CODE = 0xABCD
@@ -147,8 +147,10 @@ export const androidFileSystem: FileSystemAdapter = {
               const sb = new java.lang.StringBuilder()
               let line: string | null = reader.readLine()
               while (line !== null) {
-                sb.append(line).append('\n')
-                line = reader.readLine()
+                const next = reader.readLine()
+                sb.append(line)
+                if (next !== null) sb.append('\n')
+                line = next
               }
               return sb.toString()
             }
@@ -167,8 +169,80 @@ export const androidFileSystem: FileSystemAdapter = {
   },
 }
 
+export const androidReader: ReaderAdapter = {
+  readFile(uri: string): string {
+    const context = Application.android.context
+    const contentResolver = context.getContentResolver()
+    const docUri = android.net.Uri.parse(uri)
+    const stream = contentResolver.openInputStream(docUri)
+    if (!stream) return ''
+    try {
+      const reader = new java.io.BufferedReader(
+        new java.io.InputStreamReader(stream, java.nio.charset.StandardCharsets.UTF_8),
+      )
+      const sb = new java.lang.StringBuilder()
+      let line: string | null = reader.readLine()
+      while (line !== null) {
+        const next = reader.readLine()
+        sb.append(line)
+        if (next !== null) sb.append('\n')
+        line = next
+      }
+      return sb.toString()
+    }
+    finally {
+      stream.close()
+    }
+  },
+}
+
+export const androidWriter: WriterAdapter = {
+  createDocument(vaultUri: string, name: string): string {
+    const context = Application.android.context
+    const contentResolver = context.getContentResolver()
+    const treeUri = android.net.Uri.parse(vaultUri)
+    const treeDocId = android.provider.DocumentsContract.getTreeDocumentId(treeUri)
+    const parentUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(treeUri, treeDocId)
+    const docUri = android.provider.DocumentsContract.createDocument(
+      contentResolver,
+      parentUri,
+      'text/markdown',
+      name,
+    )
+    if (!docUri) throw new Error(`Failed to create document: ${name}`)
+    return docUri.toString()
+  },
+
+  writeDocument(uri: string, content: string): void {
+    const context = Application.android.context
+    const contentResolver = context.getContentResolver()
+    const docUri = android.net.Uri.parse(uri)
+    const stream = contentResolver.openOutputStream(docUri, 'wt')
+    if (!stream) throw new Error(`Failed to open output stream for: ${uri}`)
+    try {
+      const writer = new java.io.OutputStreamWriter(stream, java.nio.charset.StandardCharsets.UTF_8)
+      writer.write(content)
+      writer.flush()
+    }
+    finally {
+      stream.close()
+    }
+  },
+
+  renameDocument(uri: string, newName: string): string {
+    const context = Application.android.context
+    const contentResolver = context.getContentResolver()
+    const docUri = android.net.Uri.parse(uri)
+    const newUri = android.provider.DocumentsContract.renameDocument(contentResolver, docUri, newName)
+    if (!newUri) throw new Error(`Failed to rename document to: ${newName}`)
+    return newUri.toString()
+  },
+}
+
 export const vaultService = createVaultService({
   storage: androidStorage,
   permission: androidPermission,
   fileSystem: androidFileSystem,
+  writer: androidWriter,
+  reader: androidReader,
 })

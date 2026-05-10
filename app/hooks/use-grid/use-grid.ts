@@ -11,5 +11,9 @@ export function useGrid() {
     void vaultStore.loadNotes()
   })
 
-  return { sortedNotes, isLoading }
+  function newNote(): string {
+    return vaultStore.createNote()
+  }
+
+  return { sortedNotes, isLoading, newNote }
 }

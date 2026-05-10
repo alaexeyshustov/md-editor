@@ -1,5 +1,8 @@
 <template>
-  <StackLayout class="note-card">
+  <StackLayout
+    class="note-card"
+    @tap="emit('open', note.uri)"
+  >
     <Label
       :text="note.title"
       class="note-title"
@@ -17,6 +20,7 @@
 import type { NoteMetadata } from '../../../../services/vault-service/vault-service'
 
 defineProps<{ note: NoteMetadata }>()
+const emit = defineEmits<{ open: [uri: string] }>()
 </script>
 
 <style scoped>
