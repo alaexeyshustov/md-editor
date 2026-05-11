@@ -153,7 +153,39 @@ describe('useToolbar', () => {
     })
   })
 
-  // ─── onCopyRaw ───────────────────────────────────────────────────────────────
+  // ─── handleNativeEnter ───────────────────────────────────────────────────────
+
+  describe('handleNativeEnter()', () => {
+    it('inserts "- " after a native newline when list is active', () => {
+      const content = ref('- item\n')
+      const { onList, handleNativeEnter } = useToolbar(content, () => 0)
+      onList() // activate list mode
+      // cursor is at position 7 (right after the '\n')
+      const inserted = handleNativeEnter(7)
+      expect(inserted).toBe(2)
+      expect(content.value).toBe('- item\n- ')
+    })
+
+    it('deactivates list mode and inserts nothing on an empty list item', () => {
+      const content = ref('- \n')
+      const { onList, handleNativeEnter, isListActive } = useToolbar(content, () => 0)
+      onList()
+      const inserted = handleNativeEnter(3)
+      expect(inserted).toBe(0)
+      expect(isListActive.value).toBe(false)
+      expect(content.value).toBe('- \n')
+    })
+
+    it('returns 0 and does nothing when list is not active', () => {
+      const content = ref('Hello\n')
+      const { handleNativeEnter } = useToolbar(content, () => 0)
+      const inserted = handleNativeEnter(6)
+      expect(inserted).toBe(0)
+      expect(content.value).toBe('Hello\n')
+    })
+  })
+
+
 
   describe('onCopyRaw()', () => {
     it('copies full content to clipboard', () => {

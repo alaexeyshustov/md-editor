@@ -20,6 +20,12 @@ export interface ToolbarActions {
    * Continues list or exits list mode. Returns new cursor position.
    */
   onEnter(): number
+  /**
+   * Called after Android inserts a newline natively (via TextWatcher).
+   * Inserts the list-continuation prefix right after the newline.
+   * Returns the number of characters inserted (0 when nothing was added).
+   */
+  handleNativeEnter(cursorAfterNewline: number): number
   /** Inserts / toggles checkbox on the current line. Returns new cursor position. */
   onCheckbox(): number
   /** Copies full content to clipboard. */
@@ -84,6 +90,22 @@ export function useToolbar(
     return cursor + insert.length
   }
 
+  function handleNativeEnter(cursorAfterNewline: number): number {
+    if (!isListActive.value) return 0
+    const text = contentRef.value
+    const newlinePos = cursorAfterNewline - 1
+    const lineStart = text.lastIndexOf('\n', newlinePos - 1) + 1
+    const prevLine = text.slice(lineStart, newlinePos)
+    const prefix = continueList(prevLine)
+    if (prefix === '') {
+      isListActive.value = false
+      return 0
+    }
+    contentRef.value =
+      text.slice(0, cursorAfterNewline) + prefix + text.slice(cursorAfterNewline)
+    return prefix.length
+  }
+
   function onCheckbox(): number {
     const cursor = getCursorPos()
     const { start, end } = getLineRange(contentRef.value, cursor)
@@ -106,6 +128,7 @@ export function useToolbar(
     onHeadline,
     onList,
     onEnter,
+    handleNativeEnter,
     onCheckbox,
     onCopyRaw,
     resetHeadlineState,

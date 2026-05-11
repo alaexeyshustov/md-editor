@@ -51,8 +51,29 @@ function onTextViewLoaded(args: { object: { nativeView: android.widget.EditText 
   textViewNative = args.object.nativeView
 }
 
+let isApplyingContinuation = false
+
 function onTextChange(args: PropertyChangeData) {
-  editor.content.value = String(args.value)
+  if (isApplyingContinuation) return
+  const newValue = String(args.value)
+  editor.content.value = newValue
+
+  if (!toolbar.isListActive.value) return
+
+  const cursor = textViewNative?.getSelectionStart() ?? newValue.length
+  if (cursor > 0 && newValue[cursor - 1] === '\n') {
+    isApplyingContinuation = true
+    const inserted = toolbar.handleNativeEnter(cursor)
+    if (inserted > 0) {
+      const newCursor = cursor + inserted
+      setTimeout(() => {
+        textViewNative?.setSelection(newCursor, newCursor)
+        isApplyingContinuation = false
+      }, 0)
+    } else {
+      isApplyingContinuation = false
+    }
+  }
 }
 
 function onNavigatingFrom(args: NavigatedData) {
@@ -63,15 +84,18 @@ function onNavigatingFrom(args: NavigatedData) {
 }
 
 function onHeadline() {
-  toolbar.onHeadline()
+  const newCursor = toolbar.onHeadline()
+  textViewNative?.setSelection(newCursor, newCursor)
 }
 
 function onList() {
-  toolbar.onList()
+  const newCursor = toolbar.onList()
+  textViewNative?.setSelection(newCursor, newCursor)
 }
 
 function onCheckbox() {
-  toolbar.onCheckbox()
+  const newCursor = toolbar.onCheckbox()
+  textViewNative?.setSelection(newCursor, newCursor)
 }
 
 function onCopyRaw() {
