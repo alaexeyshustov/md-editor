@@ -55,9 +55,9 @@ export const useVaultStore = defineStore('vault', () => {
     }
   }
 
-  function createNote(): string {
+  function createNote(initialContent?: string): string {
     if (!vaultUri.value) throw new Error('No vault selected')
-    return getService().createNote(vaultUri.value)
+    return getService().createNote(vaultUri.value, initialContent)
   }
 
   async function saveNote(uri: string, content: string): Promise<string> {

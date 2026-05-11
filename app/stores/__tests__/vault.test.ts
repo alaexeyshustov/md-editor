@@ -8,7 +8,7 @@ const mockGetStoredVaultUri = vi.fn<() => string | null>()
 const mockSaveVaultUri = vi.fn<(uri: string) => void>()
 const mockRequestVaultPermission = vi.fn<() => Promise<string | null>>()
 const mockListNotes = vi.fn<(vaultUri: string) => NoteMetadata[]>()
-const mockCreateNote = vi.fn<(vaultUri: string) => string>()
+const mockCreateNote = vi.fn<(vaultUri: string, initialContent?: string) => string>()
 const mockSaveNote = vi.fn<(uri: string, content: string) => string>()
 const mockReadNote = vi.fn<(uri: string) => string>()
 
@@ -176,7 +176,16 @@ describe('useVaultStore', () => {
       const store = useVaultStore()
       store.init()
       store.createNote()
-      expect(mockCreateNote).toHaveBeenCalledWith('content://vault')
+      expect(mockCreateNote).toHaveBeenCalledWith('content://vault', undefined)
+    })
+
+    it('passes initialContent to service.createNote when provided', () => {
+      mockGetStoredVaultUri.mockReturnValue('content://vault')
+      mockCreateNote.mockReturnValue('content://doc/new')
+      const store = useVaultStore()
+      store.init()
+      store.createNote('hello world')
+      expect(mockCreateNote).toHaveBeenCalledWith('content://vault', 'hello world')
     })
 
     it('returns the URI from the service', () => {

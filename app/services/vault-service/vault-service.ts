@@ -44,7 +44,7 @@ export interface VaultService {
   saveVaultUri(uri: string): void
   requestVaultPermission(): Promise<string | null>
   listNotes(vaultUri: string): NoteMetadata[]
-  createNote(vaultUri: string): string
+  createNote(vaultUri: string, initialContent?: string): string
   saveNote(uri: string, content: string): string
   readNote(uri: string): string
 }
@@ -83,13 +83,13 @@ export function createVaultService(deps: {
         }))
     },
 
-    createNote(vaultUri: string): string {
+    createNote(vaultUri: string, initialContent?: string): string {
       if (!deps.writer) throw new Error('WriterAdapter not configured')
       const bytes = crypto.getRandomValues(new Uint8Array(8))
       const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
       const name = `${hex}.md`
       const uri = deps.writer.createDocument(vaultUri, name)
-      deps.writer.writeDocument(uri, '')
+      deps.writer.writeDocument(uri, initialContent ?? '')
       newNoteUris.set(uri, vaultUri)
       return uri
     },

@@ -158,11 +158,18 @@ describe('VaultService.createNote', () => {
     expect(writer.createDocument).toHaveBeenCalledWith('content://vault', expect.stringMatching(/^[0-9a-f]{16}\.md$/))
   })
 
-  it('writes empty content to the new file', () => {
+  it('writes empty content to the new file when no initialContent is given', () => {
     const writer = makeWriter({ createDocument: vi.fn(() => 'content://doc/abc') })
     const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: makeFS([]), writer })
     service.createNote('content://vault')
     expect(writer.writeDocument).toHaveBeenCalledWith('content://doc/abc', '')
+  })
+
+  it('writes initialContent to the new file when provided', () => {
+    const writer = makeWriter({ createDocument: vi.fn(() => 'content://doc/abc') })
+    const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: makeFS([]), writer })
+    service.createNote('content://vault', 'pasted text')
+    expect(writer.writeDocument).toHaveBeenCalledWith('content://doc/abc', 'pasted text')
   })
 
   it('returns the URI of the newly created document', () => {
