@@ -48,12 +48,11 @@
         </StackLayout>
       </ScrollView>
 
-      <Button
-        text="+"
-        class="fab"
-        horizontal-alignment="right"
-        vertical-alignment="bottom"
-        @tap="onNewNote"
+      <FabButton
+        :is-expanded="fab.isExpanded.value"
+        @toggle="onFabToggle"
+        @paste="onPaste"
+        @collapse="fab.collapse()"
       />
     </GridLayout>
   </Page>
@@ -61,13 +60,17 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Toast } from '@nativescript/core'
 import { $navigateTo } from 'nativescript-vue'
 
 import { useGrid } from '../../hooks/use-grid/use-grid'
+import { useFab } from '../../hooks/use-fab/use-fab'
 import EditorView from '../Editor/EditorView.vue'
+import FabButton from './components/FabButton/FabButton.vue'
 import NoteCard from './components/NoteCard/NoteCard.vue'
 
 const grid = useGrid()
+const fab = useFab()
 
 const leftColumnNotes = computed(() =>
   grid.sortedNotes.filter((_, i) => i % 2 === 0),
@@ -81,9 +84,23 @@ async function openNote(uri: string) {
   await $navigateTo(EditorView, { props: { uri } })
 }
 
-async function onNewNote() {
-  const uri = grid.newNote()
-  await $navigateTo(EditorView, { props: { uri } })
+function onFabToggle() {
+  if (fab.isExpanded.value) {
+    fab.collapse()
+  }
+  else {
+    const uri = grid.newNote()
+    $navigateTo(EditorView, { props: { uri } }).catch(() => {})
+  }
+}
+
+async function onPaste() {
+  const result = fab.pasteNote()
+  if (result.isEmpty) {
+    Toast.makeText('Clipboard is empty', 'short').show()
+    return
+  }
+  await $navigateTo(EditorView, { props: { uri: result.uri } })
 }
 </script>
 
@@ -106,15 +123,5 @@ async function onNewNote() {
 .grid-column {
   padding: 0;
 }
-
-.fab {
-  width: 56;
-  height: 56;
-  border-radius: 28;
-  font-size: 24;
-  background-color: #007AFF;
-  color: #ffffff;
-  margin: 16;
-  elevation: 6;
-}
 </style>
+
