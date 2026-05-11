@@ -1,7 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { NoteMetadata, VaultService } from '../../services/vault-service/vault-service'
+import type { NoteMetadata, NotesMeta, VaultService } from '../../services/vault-service/vault-service'
 import { configureVaultService, useVaultStore } from '../vault'
 
 const mockGetStoredVaultUri = vi.fn<() => string | null>()
@@ -11,6 +11,9 @@ const mockListNotes = vi.fn<(vaultUri: string) => NoteMetadata[]>()
 const mockCreateNote = vi.fn<(vaultUri: string) => string>()
 const mockSaveNote = vi.fn<(uri: string, content: string) => string>()
 const mockReadNote = vi.fn<(uri: string) => string>()
+const mockReadMeta = vi.fn<(vaultUri: string) => NotesMeta>()
+const mockWriteMeta = vi.fn<(vaultUri: string, meta: NotesMeta) => void>()
+const mockDeleteNote = vi.fn<(uri: string) => void>()
 
 const mockService: VaultService = {
   getStoredVaultUri: mockGetStoredVaultUri,
@@ -20,6 +23,9 @@ const mockService: VaultService = {
   createNote: mockCreateNote,
   saveNote: mockSaveNote,
   readNote: mockReadNote,
+  readMeta: mockReadMeta,
+  writeMeta: mockWriteMeta,
+  deleteNote: mockDeleteNote,
 }
 
 function makeNote(id: string, lastModified: number): NoteMetadata {
@@ -31,6 +37,7 @@ describe('useVaultStore', () => {
     setActivePinia(createPinia())
     configureVaultService(mockService)
     vi.clearAllMocks()
+    mockReadMeta.mockReturnValue({ pinned: [] })
   })
 
   describe('init()', () => {
@@ -223,6 +230,138 @@ describe('useVaultStore', () => {
       const store = useVaultStore()
       expect(store.readNote('content://doc/note')).toBe('note content here')
       expect(mockReadNote).toHaveBeenCalledWith('content://doc/note')
+    })
+  })
+
+  describe('sortedNotes with pinned', () => {
+    it('puts pinned notes before unpinned', async () => {
+      mockGetStoredVaultUri.mockReturnValue('content://vault')
+      mockListNotes.mockReturnValue([
+        makeNote('a', 3000),
+        makeNote('b', 2000),
+        makeNote('c', 1000),
+      ])
+      mockReadMeta.mockReturnValue({ pinned: ['b'] })
+      const store = useVaultStore()
+      store.init()
+      await store.loadNotes()
+      expect(store.sortedNotes.map(n => n.id)).toEqual(['b', 'a', 'c'])
+    })
+
+    it('sorts each group by lastModified descending', async () => {
+      mockGetStoredVaultUri.mockReturnValue('content://vault')
+      mockListNotes.mockReturnValue([
+        makeNote('pin-old', 1000),
+        makeNote('pin-new', 4000),
+        makeNote('unpin-old', 500),
+        makeNote('unpin-new', 2000),
+      ])
+      mockReadMeta.mockReturnValue({ pinned: ['pin-old', 'pin-new'] })
+      const store = useVaultStore()
+      store.init()
+      await store.loadNotes()
+      expect(store.sortedNotes.map(n => n.id)).toEqual(['pin-new', 'pin-old', 'unpin-new', 'unpin-old'])
+    })
+
+    it('marks pinned notes with pinned: true', async () => {
+      mockGetStoredVaultUri.mockReturnValue('content://vault')
+      mockListNotes.mockReturnValue([makeNote('a', 1000)])
+      mockReadMeta.mockReturnValue({ pinned: ['a'] })
+      const store = useVaultStore()
+      store.init()
+      await store.loadNotes()
+      expect(store.sortedNotes[0].pinned).toBe(true)
+    })
+  })
+
+  describe('pinNote()', () => {
+    it('updates the note in the store to pinned: true', async () => {
+      mockGetStoredVaultUri.mockReturnValue('content://vault')
+      mockListNotes.mockReturnValue([makeNote('a', 1000)])
+      mockReadMeta.mockReturnValue({ pinned: [] })
+      const store = useVaultStore()
+      store.init()
+      await store.loadNotes()
+      await store.pinNote('a', true)
+      expect(store.notes.find(n => n.id === 'a')?.pinned).toBe(true)
+    })
+
+    it('updates the note in the store to pinned: false', async () => {
+      mockGetStoredVaultUri.mockReturnValue('content://vault')
+      mockListNotes.mockReturnValue([makeNote('a', 1000)])
+      mockReadMeta.mockReturnValue({ pinned: ['a'] })
+      const store = useVaultStore()
+      store.init()
+      await store.loadNotes()
+      await store.pinNote('a', false)
+      expect(store.notes.find(n => n.id === 'a')?.pinned).toBe(false)
+    })
+
+    it('persists the pin state via service.writeMeta', async () => {
+      mockGetStoredVaultUri.mockReturnValue('content://vault')
+      mockListNotes.mockReturnValue([makeNote('a', 1000)])
+      mockReadMeta.mockReturnValue({ pinned: [] })
+      const store = useVaultStore()
+      store.init()
+      await store.loadNotes()
+      await store.pinNote('a', true)
+      expect(mockWriteMeta).toHaveBeenCalledWith('content://vault', { pinned: ['a'] })
+    })
+
+    it('removes from pinned when unpinning', async () => {
+      mockGetStoredVaultUri.mockReturnValue('content://vault')
+      mockListNotes.mockReturnValue([makeNote('a', 1000)])
+      mockReadMeta.mockReturnValue({ pinned: ['a'] })
+      const store = useVaultStore()
+      store.init()
+      await store.loadNotes()
+      await store.pinNote('a', false)
+      expect(mockWriteMeta).toHaveBeenCalledWith('content://vault', { pinned: [] })
+    })
+
+    it('throws when vaultUri is null', async () => {
+      const store = useVaultStore()
+      await expect(store.pinNote('a', true)).rejects.toThrow()
+    })
+  })
+
+  describe('deleteNote()', () => {
+    it('calls service.deleteNote with the uri', async () => {
+      mockGetStoredVaultUri.mockReturnValue('content://vault')
+      mockListNotes.mockReturnValue([makeNote('a', 1000)])
+      mockReadMeta.mockReturnValue({ pinned: [] })
+      const store = useVaultStore()
+      store.init()
+      await store.loadNotes()
+      await store.deleteNote('a')
+      expect(mockDeleteNote).toHaveBeenCalledWith('a')
+    })
+
+    it('removes the note from the store', async () => {
+      mockGetStoredVaultUri.mockReturnValue('content://vault')
+      mockListNotes.mockReturnValue([makeNote('a', 1000), makeNote('b', 2000)])
+      mockReadMeta.mockReturnValue({ pinned: [] })
+      const store = useVaultStore()
+      store.init()
+      await store.loadNotes()
+      await store.deleteNote('a')
+      expect(store.notes.find(n => n.id === 'a')).toBeUndefined()
+    })
+
+    it('removes the note from pinned list if it was pinned', async () => {
+      mockGetStoredVaultUri.mockReturnValue('content://vault')
+      mockListNotes.mockReturnValue([makeNote('a', 1000)])
+      mockReadMeta.mockReturnValue({ pinned: ['a'] })
+      const store = useVaultStore()
+      store.init()
+      await store.loadNotes()
+      await store.deleteNote('a')
+      expect(mockWriteMeta).toHaveBeenCalledWith('content://vault', { pinned: [] })
+    })
+
+    it('throws when vaultUri is null', async () => {
+      const store = useVaultStore()
+      await expect(store.deleteNote('a')).rejects.toThrow()
     })
   })
 })

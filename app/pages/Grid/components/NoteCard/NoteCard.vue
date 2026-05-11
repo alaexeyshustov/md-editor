@@ -2,7 +2,13 @@
   <StackLayout
     class="note-card"
     @tap="emit('open', note.uri)"
+    @long-press="emit('long-press', note)"
   >
+    <Label
+      v-if="note.pinned"
+      text="📌"
+      class="pin-indicator"
+    />
     <Label
       :text="note.title"
       class="note-title"
@@ -20,7 +26,10 @@
 import type { NoteMetadata } from '../../../../services/vault-service/vault-service'
 
 defineProps<{ note: NoteMetadata }>()
-const emit = defineEmits<{ open: [uri: string] }>()
+const emit = defineEmits<{
+  open: [uri: string]
+  'long-press': [note: NoteMetadata]
+}>()
 </script>
 
 <style scoped>
@@ -29,6 +38,11 @@ const emit = defineEmits<{ open: [uri: string] }>()
   border-radius: 8;
   padding: 12;
   margin: 6;
+}
+
+.pin-indicator {
+  font-size: 12;
+  margin-bottom: 4;
 }
 
 .note-title {

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
-import type { NoteMetadata, VaultService } from '../services/vault-service/vault-service'
+import type { NoteMetadata, NotesMeta, VaultService } from '../services/vault-service/vault-service'
 
 let _service: VaultService | null = null
 
@@ -20,9 +20,15 @@ export const useVaultStore = defineStore('vault', () => {
   const isLoading = ref(false)
   const error = ref<Error | null>(null)
 
-  const sortedNotes = computed(() =>
-    [...notes.value].sort((a, b) => b.lastModified - a.lastModified),
-  )
+  const sortedNotes = computed(() => {
+    const pinned = notes.value
+      .filter(n => n.pinned)
+      .sort((a, b) => b.lastModified - a.lastModified)
+    const unpinned = notes.value
+      .filter(n => !n.pinned)
+      .sort((a, b) => b.lastModified - a.lastModified)
+    return [...pinned, ...unpinned]
+  })
 
   function init() {
     vaultUri.value = getService().getStoredVaultUri()
@@ -44,7 +50,10 @@ export const useVaultStore = defineStore('vault', () => {
     isLoading.value = true
     error.value = null
     try {
-      notes.value = getService().listNotes(vaultUri.value)
+      const rawNotes = getService().listNotes(vaultUri.value)
+      const meta: NotesMeta = getService().readMeta(vaultUri.value)
+      const pinnedSet = new Set(meta.pinned)
+      notes.value = rawNotes.map(n => ({ ...n, pinned: pinnedSet.has(n.uri) }))
     }
     catch (e) {
       notes.value = []
@@ -70,5 +79,25 @@ export const useVaultStore = defineStore('vault', () => {
     return getService().readNote(uri)
   }
 
-  return { vaultUri, notes, error, isLoading, sortedNotes, init, setVaultUri, pickAndSetVault, loadNotes, createNote, saveNote, readNote }
+  async function pinNote(uri: string, pinned: boolean): Promise<void> {
+    if (!vaultUri.value) throw new Error('No vault selected')
+    const meta = getService().readMeta(vaultUri.value)
+    const newPinned = pinned
+      ? [...new Set([...meta.pinned, uri])]
+      : meta.pinned.filter(id => id !== uri)
+    getService().writeMeta(vaultUri.value, { pinned: newPinned })
+    notes.value = notes.value.map(n => n.uri === uri ? { ...n, pinned } : n)
+  }
+
+  async function deleteNote(uri: string): Promise<void> {
+    if (!vaultUri.value) throw new Error('No vault selected')
+    getService().deleteNote(uri)
+    const meta = getService().readMeta(vaultUri.value)
+    if (meta.pinned.includes(uri)) {
+      getService().writeMeta(vaultUri.value, { pinned: meta.pinned.filter(id => id !== uri) })
+    }
+    notes.value = notes.value.filter(n => n.uri !== uri)
+  }
+
+  return { vaultUri, notes, error, isLoading, sortedNotes, init, setVaultUri, pickAndSetVault, loadNotes, createNote, saveNote, readNote, pinNote, deleteNote }
 })

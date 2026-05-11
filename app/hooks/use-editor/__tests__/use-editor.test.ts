@@ -19,6 +19,9 @@ const mockService: VaultService = {
   createNote: mockCreateNote,
   saveNote: mockSaveNote,
   readNote: mockReadNote,
+  readMeta: vi.fn(() => ({ pinned: [] })),
+  writeMeta: vi.fn(),
+  deleteNote: vi.fn(),
 }
 
 describe('useEditor', () => {
