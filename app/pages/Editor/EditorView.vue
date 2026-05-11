@@ -3,13 +3,24 @@
     <ActionBar title="">
       <NavigationButton text="Back" />
     </ActionBar>
-    <TextView
-      :text="content"
-      hint="Start writing..."
-      editable="true"
-      class="editor-text"
-      @text-change="onTextChange"
-    />
+    <GridLayout rows="*, auto">
+      <TextView
+        row="0"
+        :text="content"
+        hint="Start writing..."
+        editable="true"
+        class="editor-text"
+        @text-change="onTextChange"
+        @loaded="onTextViewLoaded"
+      />
+      <MarkdownToolbar
+        row="1"
+        @headline="onHeadline"
+        @list="onList"
+        @checkbox="onCheckbox"
+        @copy-raw="onCopyRaw"
+      />
+    </GridLayout>
   </Page>
 </template>
 
@@ -18,22 +29,56 @@ import { onMounted } from 'vue'
 import type { NavigatedData, PropertyChangeData } from '@nativescript/core'
 
 import { useEditor } from '../../hooks/use-editor/use-editor'
+import { useToolbar } from '../../hooks/use-toolbar/use-toolbar'
+import MarkdownToolbar from './components/MarkdownToolbar/MarkdownToolbar.vue'
 
 const props = defineProps<{ uri: string }>()
-const { content, load, save } = useEditor()
+const editor = useEditor()
 let saving = false
 
-onMounted(() => load(props.uri))
+// NativeScript TextView native reference for reading cursor position
+let textViewNative: android.widget.EditText | null = null
+
+function getCursorPos(): number {
+  return textViewNative?.getSelectionStart() ?? editor.content.value.length
+}
+
+const toolbar = useToolbar(editor.content, getCursorPos)
+
+onMounted(() => editor.load(props.uri))
+
+function onTextViewLoaded(args: { object: { nativeView: android.widget.EditText } }) {
+  textViewNative = args.object.nativeView
+}
 
 function onTextChange(args: PropertyChangeData) {
-  content.value = String(args.value)
+  editor.content.value = String(args.value)
 }
 
 function onNavigatingFrom(args: NavigatedData) {
+  toolbar.resetHeadlineState()
   if (!args.isBackNavigation || saving) return
   saving = true
-  save().catch(() => {}).finally(() => { saving = false })
+  editor.save().catch(() => {}).finally(() => { saving = false })
 }
+
+function onHeadline() {
+  toolbar.onHeadline()
+}
+
+function onList() {
+  toolbar.onList()
+}
+
+function onCheckbox() {
+  toolbar.onCheckbox()
+}
+
+function onCopyRaw() {
+  toolbar.onCopyRaw()
+}
+
+const { content } = editor
 </script>
 
 <style scoped>
@@ -47,3 +92,4 @@ function onNavigatingFrom(args: NavigatedData) {
   color: #1a1a1a;
 }
 </style>
+
