@@ -1,15 +1,25 @@
 <template>
   <AbsoluteLayout>
-    <!-- Paste mini-button (shown when expanded) -->
+    <!-- Mini-buttons (shown when expanded) -->
     <Button
       v-if="isExpanded"
       text="📋"
       class="fab-mini"
       horizontal-alignment="right"
       vertical-alignment="bottom"
-      :margin-bottom="miniBtnOffset"
+      :margin-bottom="miniBtnOffset + 56"
       :opacity="miniOpacity"
       @tap="emit('paste')"
+    />
+    <Button
+      v-if="isExpanded"
+      text="✏️"
+      class="fab-mini"
+      horizontal-alignment="right"
+      vertical-alignment="bottom"
+      :margin-bottom="miniBtnOffset"
+      :opacity="miniOpacity"
+      @tap="emit('new-note')"
     />
 
     <!-- Backdrop tap target to collapse FAB -->
@@ -41,6 +51,7 @@ const props = defineProps<{ isExpanded: boolean }>()
 const emit = defineEmits<{
   toggle: []
   paste: []
+  'new-note': []
   collapse: []
 }>()
 
@@ -57,7 +68,6 @@ watch(
     if (expanded) {
       miniOpacity.value = 0
       miniBtnOffset.value = 68
-      view.animate({ rotate: 45, duration: 200, curve: 'spring' }).catch(() => {})
       view
         .animate({ rotate: 45, duration: 200, curve: 'spring' })
         .then(() => {

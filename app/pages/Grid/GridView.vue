@@ -52,6 +52,7 @@
         :is-expanded="fab.isExpanded.value"
         @toggle="onFabToggle"
         @paste="onPaste"
+        @new-note="onNewNote"
         @collapse="fab.collapse()"
       />
     </GridLayout>
@@ -85,13 +86,13 @@ async function openNote(uri: string) {
 }
 
 function onFabToggle() {
-  if (fab.isExpanded.value) {
-    fab.collapse()
-  }
-  else {
-    const uri = grid.newNote()
-    $navigateTo(EditorView, { props: { uri } }).catch(() => {})
-  }
+  fab.toggle()
+}
+
+async function onNewNote() {
+  fab.collapse()
+  const uri = grid.newNote()
+  await $navigateTo(EditorView, { props: { uri } })
 }
 
 async function onPaste() {
