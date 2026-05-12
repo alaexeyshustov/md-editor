@@ -1,6 +1,6 @@
 import { Application } from '@nativescript/core'
 
-import { createVaultService, type FileEntry, type FileSystemAdapter, type PermissionAdapter, type ReaderAdapter, type StorageAdapter, type WriterAdapter } from './vault-service'
+import { createVaultService, type FileEntry, type FileSystemAdapter, type MetaAdapter, type PermissionAdapter, type ReaderAdapter, type StorageAdapter, type WriterAdapter } from './vault-service'
 
 const PREFS_NAME = 'md_editor_prefs'
 const FOLDER_PICKER_REQUEST_CODE = 0xABCD
@@ -237,6 +237,116 @@ export const androidWriter: WriterAdapter = {
     if (!newUri) throw new Error(`Failed to rename document to: ${newName}`)
     return newUri.toString()
   },
+
+  deleteDocument(uri: string): void {
+    const context = Application.android.context
+    const contentResolver = context.getContentResolver()
+    const docUri = android.net.Uri.parse(uri)
+    const deleted = android.provider.DocumentsContract.deleteDocument(contentResolver, docUri)
+    if (!deleted) throw new Error(`Failed to delete document: ${uri}`)
+  },
+}
+
+const META_FILE_NAME = '.mdeditor-meta.json'
+const META_MIME_TYPE = 'application/json'
+
+function readTextFromUri(context: android.content.Context, docUri: android.net.Uri): string {
+  const contentResolver = context.getContentResolver()
+  const stream = contentResolver.openInputStream(docUri)
+  if (!stream) return ''
+  try {
+    const reader = new java.io.BufferedReader(
+      new java.io.InputStreamReader(stream, java.nio.charset.StandardCharsets.UTF_8),
+    )
+    const sb = new java.lang.StringBuilder()
+    let line: string | null = reader.readLine()
+    while (line !== null) {
+      const next = reader.readLine()
+      sb.append(line)
+      if (next !== null) sb.append('\n')
+      line = next
+    }
+    return sb.toString()
+  }
+  finally {
+    stream.close()
+  }
+}
+
+function findMetaDocUri(context: android.content.Context, vaultUri: string): android.net.Uri | null {
+  const contentResolver = context.getContentResolver()
+  const treeUri = android.net.Uri.parse(vaultUri)
+  const treeDocId = android.provider.DocumentsContract.getTreeDocumentId(treeUri)
+  const childrenUri = android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, treeDocId)
+
+  const noFilter = null as unknown as string
+  const noArgs = null as unknown as androidNative.Array<string>
+
+  const cursor = contentResolver.query(
+    childrenUri,
+    [
+      android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+      android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+    ],
+    noFilter,
+    noArgs,
+    noFilter,
+  )
+
+  if (!cursor) return null
+  try {
+    while (cursor.moveToNext()) {
+      const docId = cursor.getString(0)
+      const name = cursor.getString(1)
+      if (name === META_FILE_NAME) {
+        return android.provider.DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
+      }
+    }
+  }
+  finally {
+    cursor.close()
+  }
+  return null
+}
+
+export const androidMeta: MetaAdapter = {
+  readMeta(vaultUri: string): string | null {
+    const context = Application.android.context
+    const docUri = findMetaDocUri(context, vaultUri)
+    if (!docUri) return null
+    return readTextFromUri(context, docUri)
+  },
+
+  writeMeta(vaultUri: string, content: string): void {
+    const context = Application.android.context
+    const contentResolver = context.getContentResolver()
+    const treeUri = android.net.Uri.parse(vaultUri)
+
+    let docUri = findMetaDocUri(context, vaultUri)
+    if (!docUri) {
+      const treeDocId = android.provider.DocumentsContract.getTreeDocumentId(treeUri)
+      const parentUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(treeUri, treeDocId)
+      const newUri = android.provider.DocumentsContract.createDocument(
+        contentResolver,
+        parentUri,
+        META_MIME_TYPE,
+        META_FILE_NAME,
+      )
+      if (!newUri) throw new Error('Failed to create meta file')
+      docUri = newUri
+    }
+
+    const stream = contentResolver.openOutputStream(docUri, 'wt')
+    if (!stream) throw new Error('Failed to open meta file for writing')
+    try {
+      const writer = new java.io.OutputStreamWriter(stream, java.nio.charset.StandardCharsets.UTF_8)
+      writer.write(content)
+      writer.flush()
+    }
+    finally {
+      stream.close()
+    }
+  },
 }
 
 export const vaultService = createVaultService({
@@ -245,4 +355,5 @@ export const vaultService = createVaultService({
   fileSystem: androidFileSystem,
   writer: androidWriter,
   reader: androidReader,
+  meta: androidMeta,
 })

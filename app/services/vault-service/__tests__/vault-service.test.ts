@@ -29,6 +29,7 @@ function makeWriter(overrides: Partial<WriterAdapter> = {}): WriterAdapter {
     createDocument: vi.fn(() => 'content://doc/new'),
     writeDocument: vi.fn(),
     renameDocument: vi.fn((uri: string) => `${uri}-renamed`),
+    deleteDocument: vi.fn(),
     ...overrides,
   }
 }
@@ -288,5 +289,74 @@ describe('VaultService.readNote', () => {
     const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: makeFS([]), reader })
     service.readNote('content://doc/abc')
     expect(readFile).toHaveBeenCalledWith('content://doc/abc')
+  })
+})
+
+function makeMetaAdapter(overrides: Partial<import('../vault-service').MetaAdapter> = {}): import('../vault-service').MetaAdapter {
+  return {
+    readMeta: vi.fn(() => null),
+    writeMeta: vi.fn(),
+    ...overrides,
+  }
+}
+
+describe('VaultService.readMeta', () => {
+  it('returns empty pinned array when meta adapter returns null', () => {
+    const meta = makeMetaAdapter({ readMeta: vi.fn(() => null) })
+    const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: makeFS([]), meta })
+    expect(service.readMeta('content://vault')).toEqual({ pinned: [] })
+  })
+
+  it('returns parsed pinned array from JSON', () => {
+    const meta = makeMetaAdapter({ readMeta: vi.fn(() => JSON.stringify({ pinned: ['content://a', 'content://b'] })) })
+    const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: makeFS([]), meta })
+    expect(service.readMeta('content://vault')).toEqual({ pinned: ['content://a', 'content://b'] })
+  })
+
+  it('returns empty pinned array when JSON is malformed', () => {
+    const meta = makeMetaAdapter({ readMeta: vi.fn(() => 'not-json') })
+    const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: makeFS([]), meta })
+    expect(service.readMeta('content://vault')).toEqual({ pinned: [] })
+  })
+
+  it('passes vaultUri to the meta adapter', () => {
+    const readMeta = vi.fn(() => null)
+    const meta = makeMetaAdapter({ readMeta })
+    const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: makeFS([]), meta })
+    service.readMeta('content://my-vault')
+    expect(readMeta).toHaveBeenCalledWith('content://my-vault')
+  })
+})
+
+describe('VaultService.writeMeta', () => {
+  it('serializes meta and writes via the adapter', () => {
+    const writeMeta = vi.fn()
+    const meta = makeMetaAdapter({ writeMeta })
+    const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: makeFS([]), meta })
+    service.writeMeta('content://vault', { pinned: ['content://a'] })
+    expect(writeMeta).toHaveBeenCalledWith('content://vault', JSON.stringify({ pinned: ['content://a'] }))
+  })
+
+  it('passes vaultUri to the meta adapter', () => {
+    const writeMeta = vi.fn()
+    const meta = makeMetaAdapter({ writeMeta })
+    const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: makeFS([]), meta })
+    service.writeMeta('content://my-vault', { pinned: [] })
+    expect(writeMeta).toHaveBeenCalledWith('content://my-vault', expect.any(String))
+  })
+})
+
+describe('VaultService.deleteNote', () => {
+  it('calls writer.deleteDocument with the note uri', () => {
+    const deleteDocument = vi.fn()
+    const writer = makeWriter({ deleteDocument })
+    const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: makeFS([]), writer })
+    service.deleteNote('content://doc/note')
+    expect(deleteDocument).toHaveBeenCalledWith('content://doc/note')
+  })
+
+  it('throws when WriterAdapter not configured', () => {
+    const service = createVaultService({ storage: makeStorage(), permission: neverPicker, fileSystem: makeFS([]) })
+    expect(() => service.deleteNote('content://doc/note')).toThrow('WriterAdapter not configured')
   })
 })

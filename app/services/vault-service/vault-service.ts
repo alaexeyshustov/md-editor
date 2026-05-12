@@ -25,10 +25,20 @@ export interface WriterAdapter {
   createDocument(vaultUri: string, name: string): string
   writeDocument(uri: string, content: string): void
   renameDocument(uri: string, newName: string): string
+  deleteDocument(uri: string): void
 }
 
 export interface ReaderAdapter {
   readFile(uri: string): string
+}
+
+export interface MetaAdapter {
+  readMeta(vaultUri: string): string | null
+  writeMeta(vaultUri: string, content: string): void
+}
+
+export interface NotesMeta {
+  pinned: string[]
 }
 
 export interface NoteMetadata {
@@ -37,6 +47,7 @@ export interface NoteMetadata {
   title: string
   preview: string
   lastModified: number
+  pinned?: boolean
 }
 
 export interface VaultService {
@@ -47,6 +58,9 @@ export interface VaultService {
   createNote(vaultUri: string): string
   saveNote(uri: string, content: string): string
   readNote(uri: string): string
+  readMeta(vaultUri: string): NotesMeta
+  writeMeta(vaultUri: string, meta: NotesMeta): void
+  deleteNote(uri: string): void
 }
 
 export function createVaultService(deps: {
@@ -55,6 +69,7 @@ export function createVaultService(deps: {
   fileSystem: FileSystemAdapter
   writer?: WriterAdapter
   reader?: ReaderAdapter
+  meta?: MetaAdapter
 }): VaultService {
   const newNoteUris = new Map<string, string>() // documentUri → vaultUri
 
@@ -131,6 +146,29 @@ export function createVaultService(deps: {
     readNote(uri: string): string {
       if (!deps.reader) throw new Error('ReaderAdapter not configured')
       return deps.reader.readFile(uri)
+    },
+
+    readMeta(vaultUri: string): NotesMeta {
+      if (!deps.meta) return { pinned: [] }
+      const raw = deps.meta.readMeta(vaultUri)
+      if (!raw) return { pinned: [] }
+      try {
+        const parsed = JSON.parse(raw) as NotesMeta
+        return { pinned: Array.isArray(parsed.pinned) ? parsed.pinned : [] }
+      }
+      catch {
+        return { pinned: [] }
+      }
+    },
+
+    writeMeta(vaultUri: string, meta: NotesMeta): void {
+      if (!deps.meta) return
+      deps.meta.writeMeta(vaultUri, JSON.stringify(meta))
+    },
+
+    deleteNote(uri: string): void {
+      if (!deps.writer) throw new Error('WriterAdapter not configured')
+      deps.writer.deleteDocument(uri)
     },
   }
 }

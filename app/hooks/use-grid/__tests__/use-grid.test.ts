@@ -21,6 +21,9 @@ const mockService: VaultService = {
   createNote: mockCreateNote,
   saveNote: vi.fn((uri) => uri),
   readNote: vi.fn(() => ''),
+  readMeta: vi.fn(() => ({ pinned: [] })),
+  writeMeta: vi.fn(),
+  deleteNote: vi.fn(),
 }
 
 function makeNote(id: string, lastModified: number): NoteMetadata {

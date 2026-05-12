@@ -31,6 +31,7 @@
                 :key="note.id"
                 :note="note"
                 @open="openNote"
+                @long-press="noteActions.showActions"
               />
             </StackLayout>
             <StackLayout
@@ -42,6 +43,7 @@
                 :key="note.id"
                 :note="note"
                 @open="openNote"
+                @long-press="noteActions.showActions"
               />
             </StackLayout>
           </GridLayout>
@@ -64,10 +66,12 @@ import { computed } from 'vue'
 import { $navigateTo } from 'nativescript-vue'
 
 import { useGrid } from '../../hooks/use-grid/use-grid'
+import { useNoteActions } from '../../hooks/use-note-actions/use-note-actions'
 import EditorView from '../Editor/EditorView.vue'
 import NoteCard from './components/NoteCard/NoteCard.vue'
 
 const grid = useGrid()
+const noteActions = useNoteActions()
 
 const leftColumnNotes = computed(() =>
   grid.sortedNotes.filter((_, i) => i % 2 === 0),
@@ -118,3 +122,4 @@ async function onNewNote() {
   elevation: 6;
 }
 </style>
+
